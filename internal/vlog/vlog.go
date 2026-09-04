@@ -3,10 +3,10 @@ package vlog
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 const MaxFileSize = 1 << 20
@@ -14,6 +14,7 @@ const MaxFileSize = 1 << 20
 type VLog struct {
 	dir string
 
+	mu     sync.RWMutex
 	active *os.File
 	writer *bufio.Writer
 
@@ -21,12 +22,27 @@ type VLog struct {
 	offset    int64
 
 	files map[uint32]*os.File
+
+	readQueue chan readJob
 }
 
 type ValuePointer struct {
 	Fid    uint32
 	Offset int64
 	Len    int64
+}
+
+type ReadResult struct {
+	Ptr   ValuePointer
+	Value []byte
+	Err   error
+}
+
+type readJob struct {
+	index   int
+	ptr     ValuePointer
+	results []ReadResult
+	wg      *sync.WaitGroup
 }
 
 func OpenVLog(dir string) (*VLog, error) {
@@ -107,6 +123,11 @@ func OpenVLog(dir string) (*VLog, error) {
 	v.activeFid = activeFid
 	v.offset = stat.Size()
 	v.writer = bufio.NewWriterSize(file, 64*1024)
+	v.readQueue = make(chan readJob, 1024)
+
+	for i := 0; i < 8; i++ {
+		go v.readWorker()
+	}
 
 	return v, nil
 }
@@ -125,69 +146,4 @@ func (v *VLog) Sync() error {
 	}
 
 	return nil
-}
-
-func (v *VLog) Rotate() error {
-	if err := v.Sync(); err != nil {
-		return fmt.Errorf("rotate vlog: %w", err)
-	}
-
-	newFid := v.activeFid + 1
-	newVLogFilename := strconv.Itoa(int(newFid))
-	newVLogPath := filepath.Join(v.dir, newVLogFilename)
-
-	file, err := os.OpenFile(newVLogPath, os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("rotate vlog: %w", err)
-	}
-
-	v.activeFid = newFid
-	v.active = file
-	v.files[v.activeFid] = file
-	v.writer = bufio.NewWriterSize(file, 64*1024)
-	v.offset = 0
-
-	return nil
-}
-
-func (v *VLog) Append(entry Entry) (ValuePointer, error) {
-
-	if v.offset >= MaxFileSize {
-		if err := v.Rotate(); err != nil {
-			return ValuePointer{}, fmt.Errorf("append entry: %w", err)
-		}
-	}
-
-	var vp ValuePointer
-
-	if err := EncodeEntry(entry, v.writer); err != nil {
-		return vp, fmt.Errorf("append entry: %w", err)
-	}
-
-	totaLen := int64(8 + len(entry.key) + len(entry.value))
-
-	vp.Offset = v.offset
-	v.offset += totaLen
-
-	vp.Fid = v.activeFid
-	vp.Len = totaLen
-
-	return vp, nil
-}
-
-func (v *VLog) Read(ptr ValuePointer) (Entry, error) {
-
-	file, ok := v.files[ptr.Fid]
-	if !ok {
-		return Entry{}, fmt.Errorf("read vlog: file not found for fid %d", ptr.Fid)
-	}
-
-	r := io.NewSectionReader(file, ptr.Offset, ptr.Len)
-
-	entry, err := DecodeEntry(r)
-	if err != nil {
-		return Entry{}, fmt.Errorf("read vlog: %w", err)
-	}
-
-	return entry, nil
 }

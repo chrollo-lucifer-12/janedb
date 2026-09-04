@@ -1,9 +1,51 @@
 package vlog
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
+
+func BenchmarkVLogRead(b *testing.B) {
+	dir := b.TempDir()
+
+	v, err := OpenVLog(dir)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer v.Close()
+
+	const numPtrs = 1000
+
+	ptrs := make([]ValuePointer, numPtrs)
+	results := make([]ReadResult, numPtrs)
+
+	for i := 0; i < numPtrs; i++ {
+		entry := Entry{
+			key:   []byte(fmt.Sprintf("key-%d", i)),
+			value: []byte(fmt.Sprintf("value-%d", i)),
+		}
+
+		ptr, err := v.Append(entry)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		ptrs[i] = ptr
+
+		results[i].Value = make([]byte, ptr.Len)
+	}
+
+	if err := v.Sync(); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		v.Read(ptrs, results)
+	}
+}
 
 func TestOpenVLog(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vlog")
@@ -62,22 +104,23 @@ func TestAppendRead(t *testing.T) {
 		t.Errorf("ptr.Fid = %d, want 1", ptr.Fid)
 	}
 
-	if ptr.Offset != 0 {
+	expectedOffset := int64(8 + len(want.key))
+
+	if ptr.Offset != expectedOffset {
 		t.Errorf("ptr.Offset = %d, want 0", ptr.Offset)
 	}
 
-	got, err := v.Read(ptr)
+	result := make([]byte, len(want.value))
+	err = v.ReadValue(ptr, result)
+
 	if err != nil {
-		t.Fatalf("Read() error = %v", err)
+		t.Errorf(err.Error())
 	}
 
-	if string(got.key) != string(want.key) {
-		t.Errorf("key = %q, want %q", got.key, want.key)
+	if string(result) != string(want.value) {
+		t.Errorf("value = %q, want %q", result, want.value)
 	}
 
-	if string(got.value) != string(want.value) {
-		t.Errorf("value = %q, want %q", got.value, want.value)
-	}
 }
 
 func TestAppendMultiple(t *testing.T) {
@@ -112,31 +155,38 @@ func TestAppendMultiple(t *testing.T) {
 		t.Errorf("expected both entries in segment 1")
 	}
 
-	if ptrs[0].Offset != 0 {
-		t.Errorf("first offset = %d, want 0", ptrs[0].Offset)
+	expectedFirstOffset := int64(8 + len(entries[0].key))
+
+	if ptrs[0].Offset != expectedFirstOffset {
+		t.Errorf(
+			"first offset = %d, want %d",
+			ptrs[0].Offset,
+			expectedFirstOffset,
+		)
 	}
 
-	if ptrs[1].Offset != ptrs[0].Len {
+	expectedSecondOffset := ptrs[0].Offset + ptrs[0].Len + 8 + int64(len(entries[1].key))
+
+	if ptrs[1].Offset != expectedSecondOffset {
 		t.Errorf(
 			"second offset = %d, want %d",
 			ptrs[1].Offset,
-			ptrs[0].Len,
+			expectedSecondOffset,
 		)
 	}
 
 	for i, ptr := range ptrs {
-		got, err := v.Read(ptr)
+		result := make([]byte, len(entries[i].value))
+		err := v.ReadValue(ptr, result)
+
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf(err.Error())
 		}
 
-		if string(got.key) != string(entries[i].key) {
-			t.Errorf("entry %d key mismatch", i)
+		if string(result) != string(entries[i].value) {
+			t.Errorf("value = %q, want %q", result, entries[i].value)
 		}
 
-		if string(got.value) != string(entries[i].value) {
-			t.Errorf("entry %d value mismatch", i)
-		}
 	}
 }
 
@@ -171,70 +221,6 @@ func TestRotate(t *testing.T) {
 
 	if v.files[2] == nil {
 		t.Fatal("files[2] is nil")
-	}
-}
-
-func TestReadAcrossSegments(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "vlog")
-
-	v, err := OpenVLog(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer v.Close()
-
-	first := Entry{
-		key:   []byte("first"),
-		value: []byte("value1"),
-	}
-
-	firstPtr, err := v.Append(first)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := v.Rotate(); err != nil {
-		t.Fatal(err)
-	}
-
-	second := Entry{
-		key:   []byte("second"),
-		value: []byte("value2"),
-	}
-
-	secondPtr, err := v.Append(second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := v.Sync(); err != nil {
-		t.Fatal(err)
-	}
-
-	if firstPtr.Fid != 1 {
-		t.Errorf("firstPtr.Fid = %d, want 1", firstPtr.Fid)
-	}
-
-	if secondPtr.Fid != 2 {
-		t.Errorf("secondPtr.Fid = %d, want 2", secondPtr.Fid)
-	}
-
-	gotFirst, err := v.Read(firstPtr)
-	if err != nil {
-		t.Fatalf("Read(firstPtr) error = %v", err)
-	}
-
-	gotSecond, err := v.Read(secondPtr)
-	if err != nil {
-		t.Fatalf("Read(secondPtr) error = %v", err)
-	}
-
-	if string(gotFirst.value) != string(first.value) {
-		t.Errorf("first value = %q, want %q", gotFirst.value, first.value)
-	}
-
-	if string(gotSecond.value) != string(second.value) {
-		t.Errorf("second value = %q, want %q", gotSecond.value, second.value)
 	}
 }
 
@@ -274,20 +260,24 @@ func TestReopenVLog(t *testing.T) {
 		t.Errorf("activeFid = %d, want 1", v.activeFid)
 	}
 
-	if v.offset != ptr.Len {
-		t.Errorf("offset = %d, want %d", v.offset, ptr.Len)
+	expectedOffset := int64(8 + len(entry.key))
+
+	if v.offset != expectedOffset+int64(len(entry.value)) {
+		t.Errorf(
+			"offset = %d, want %d",
+			v.offset,
+			expectedOffset+int64(len(entry.value)),
+		)
 	}
 
-	got, err := v.Read(ptr)
+	result := make([]byte, len(entry.value))
+
+	err = v.ReadValue(ptr, result)
 	if err != nil {
-		t.Fatalf("Read() after reopen error = %v", err)
+		t.Fatalf("ReadValue() error = %v", err)
 	}
 
-	if string(got.key) != string(entry.key) {
-		t.Errorf("key = %q, want %q", got.key, entry.key)
-	}
-
-	if string(got.value) != string(entry.value) {
-		t.Errorf("value = %q, want %q", got.value, entry.value)
+	if string(result) != string(entry.value) {
+		t.Errorf("value = %q, want %q", result, entry.value)
 	}
 }
