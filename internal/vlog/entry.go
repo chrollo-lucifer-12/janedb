@@ -48,8 +48,6 @@ func DecodeEntry(r io.Reader) (Entry, error) {
 	keyLen := binary.BigEndian.Uint32(header[0:4])
 	valueLen := binary.BigEndian.Uint32(header[4:8])
 
-	total := 8 + int(keyLen) + int(valueLen)
-
 	entry.key = make([]byte, keyLen)
 	entry.value = make([]byte, valueLen)
 

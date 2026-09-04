@@ -73,9 +73,9 @@ func (v *VLog) Append(entry Entry) (ValuePointer, error) {
 
 	totaLen := int64(8 + len(entry.key) + len(entry.value))
 
+	vp.Offset = v.offset
 	v.offset += totaLen
 
-	vp.Offset = v.offset
 	vp.Fid = v.fid
 	vp.Len = totaLen
 
