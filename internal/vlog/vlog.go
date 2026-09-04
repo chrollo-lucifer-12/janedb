@@ -31,7 +31,12 @@ type ValuePointer struct {
 
 func OpenVLog(dir string) (*VLog, error) {
 
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("open vlog: %w", err)
+	}
+
 	v := &VLog{
+		dir:   dir,
 		files: make(map[uint32]*os.File),
 	}
 
@@ -54,10 +59,6 @@ func OpenVLog(dir string) (*VLog, error) {
 
 		fid := uint32(fid64)
 
-		if fid > activeFid {
-			activeFid = fid
-		}
-
 		file, err := os.Open(
 			filepath.Join(dir, strconv.Itoa(int(fid))),
 		)
@@ -66,10 +67,26 @@ func OpenVLog(dir string) (*VLog, error) {
 		}
 
 		v.files[fid] = file
+
+		if fid > activeFid {
+			activeFid = fid
+		}
+
 	}
 
 	if activeFid == 0 {
 		activeFid = 1
+
+		file, err := os.OpenFile(
+			filepath.Join(dir, "1"),
+			os.O_CREATE|os.O_RDWR|os.O_APPEND,
+			0644,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("open vlog: %w", err)
+		}
+
+		v.files[1] = file
 	}
 
 	activePath := filepath.Join(dir, strconv.Itoa(int(activeFid)))
@@ -88,7 +105,6 @@ func OpenVLog(dir string) (*VLog, error) {
 
 	v.active = file
 	v.activeFid = activeFid
-	v.dir = dir
 	v.offset = stat.Size()
 	v.writer = bufio.NewWriterSize(file, 64*1024)
 
