@@ -46,7 +46,7 @@ func (a *Arena) allocateKey(key []byte) (uint32, uint32) {
 	return offset, keyLen
 }
 
-func (a *Arena) allocateNode(key []byte, value vlog.ValuePointer) (uint32, *node) {
+func (a *Arena) allocateNode(key []byte, value vlog.ValuePointer, height uint8) (uint32, *node) {
 
 	keyOffset, keySize := a.allocateKey(key)
 
@@ -57,8 +57,9 @@ func (a *Arena) allocateNode(key []byte, value vlog.ValuePointer) (uint32, *node
 	n.keyOffset = keyOffset
 	n.keySize = keySize
 	n.value = value
+	n.height = height
 
-	towerSize := uint32((MaxLevel + 1) * 4)
+	towerSize := uint32((height + 1) * 4)
 	n.towerOffset = a.allocate(towerSize)
 
 	return offset, n

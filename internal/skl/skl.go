@@ -18,6 +18,8 @@ type node struct {
 	value vlog.ValuePointer
 
 	towerOffset uint32
+
+	height uint8
 }
 
 type Skiplist struct {
@@ -29,7 +31,7 @@ type Skiplist struct {
 func NewSkiplist() *Skiplist {
 
 	a := NewArena(64 << 20)
-	headOffset, _ := a.allocateNode(nil, vlog.ValuePointer{})
+	headOffset, _ := a.allocateNode(nil, vlog.ValuePointer{}, MaxLevel)
 
 	return &Skiplist{
 		level: 0,
@@ -122,16 +124,16 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 	}
 
 	rlvl := randomLevel()
-	if rlvl > skl.level {
-		for i := skl.level + 1; i <= rlvl; i++ {
+	if int(rlvl) > skl.level {
+		for i := skl.level + 1; i <= int(rlvl); i++ {
 			update[i] = skl.head
 		}
-		skl.level = rlvl
+		skl.level = int(rlvl)
 	}
 
-	newOffset, newNode := skl.arena.allocateNode(key, value)
+	newOffset, newNode := skl.arena.allocateNode(key, value, rlvl)
 
-	for i := 0; i <= rlvl; i++ {
+	for i := 0; i <= int(rlvl); i++ {
 		prev := skl.arena.getNode(update[i])
 
 		nextOffset := skl.arena.getNext(prev.towerOffset, i)
@@ -141,8 +143,8 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 	}
 }
 
-func randomLevel() int {
-	lvl := 0
+func randomLevel() uint8 {
+	lvl := uint8(0)
 	for rand.Float64() < P && lvl < MaxLevel {
 		lvl++
 	}
