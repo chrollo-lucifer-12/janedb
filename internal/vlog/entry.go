@@ -15,11 +15,11 @@ func NewEntry(key, value []byte) Entry {
 	return Entry{key: key, value: value}
 }
 
-func EncodeEntry(entry Entry) ([]byte, error) {
+func EncodeEntry(entry Entry, buf []byte) int {
 	keyLen := len(entry.key)
 	valueLen := len(entry.value)
 
-	buf := make([]byte, 8+keyLen+valueLen)
+	n := 8 + keyLen + valueLen
 
 	binary.BigEndian.PutUint32(buf[0:4], uint32(keyLen))
 	binary.BigEndian.PutUint32(buf[4:8], uint32(valueLen))
@@ -27,7 +27,7 @@ func EncodeEntry(entry Entry) ([]byte, error) {
 	copy(buf[8:8+keyLen], entry.key)
 	copy(buf[8+keyLen:], entry.value)
 
-	return buf, nil
+	return n
 }
 
 func DecodeEntry(r io.Reader) (Entry, error) {

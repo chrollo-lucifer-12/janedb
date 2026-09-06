@@ -5,10 +5,49 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/edsrzf/mmap-go"
 )
 
-func (v *VLog) Rotate() error {
-	if err := v.Sync(); err != nil {
+func (v *VLog) Append(entry Entry) (ValuePointer, error) {
+
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	entryLen := int64(8 + len(entry.key) + len(entry.value))
+
+	if v.offset+entryLen > MaxFileSize {
+		if err := v.rotateLocked(); err != nil {
+			return ValuePointer{}, fmt.Errorf("append entry: %w", err)
+		}
+	}
+
+	active := v.files[v.activeFid]
+
+	start := v.offset
+
+	EncodeEntry(entry, active.data[start:])
+
+	ptr := ValuePointer{
+		Fid:    v.activeFid,
+		Offset: start + 8 + int64(len(entry.key)),
+		Len:    int64(len(entry.value)),
+	}
+
+	v.offset += entryLen
+
+	return ptr, nil
+}
+
+func (v *VLog) rotate() error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return v.rotateLocked()
+}
+
+func (v *VLog) rotateLocked() error {
+	if err := v.syncLocked(); err != nil {
 		return fmt.Errorf("rotate vlog: %w", err)
 	}
 
@@ -21,44 +60,26 @@ func (v *VLog) Rotate() error {
 		return fmt.Errorf("rotate vlog: %w", err)
 	}
 
+	if err := file.Truncate(MaxFileSize); err != nil {
+		file.Close()
+		return fmt.Errorf("rotate vlog: truncate: %w", err)
+	}
+
+	data, err := mmap.MapRegion(
+		file,
+		MaxFileSize,
+		mmap.RDWR,
+		0,
+		0,
+	)
+	if err != nil {
+		file.Close()
+		return fmt.Errorf("rotate vlog: mmap: %w", err)
+	}
+
 	v.activeFid = newFid
-	v.files[v.activeFid] = &logFile{file: file}
+	v.files[v.activeFid] = &logFile{file: file, data: data}
 	v.offset = 0
 
 	return nil
-}
-
-func (v *VLog) Append(entry Entry) (ValuePointer, error) {
-
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	if v.offset >= MaxFileSize {
-		if err := v.Rotate(); err != nil {
-			return ValuePointer{}, fmt.Errorf("append entry: %w", err)
-		}
-	}
-
-	buf, err := EncodeEntry(entry)
-	if err != nil {
-		return ValuePointer{}, err
-	}
-
-	entryLen := int64(len(buf))
-
-	active := v.files[v.activeFid]
-
-	copy(active.data[v.offset:v.offset+entryLen], buf)
-
-	valueOffset := v.offset + 8 + int64(len(entry.key))
-
-	ptr := ValuePointer{
-		Fid:    v.activeFid,
-		Offset: valueOffset,
-		Len:    int64(len(entry.value)),
-	}
-
-	v.offset += entryLen
-
-	return ptr, nil
 }

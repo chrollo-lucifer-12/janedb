@@ -169,6 +169,10 @@ func (v *VLog) Sync() error {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
+	return v.syncLocked()
+}
+
+func (v *VLog) syncLocked() error {
 	active := v.files[v.activeFid]
 
 	if active.data == nil {
@@ -185,6 +189,7 @@ func (v *VLog) Sync() error {
 
 	return nil
 }
+
 func findOffset(data []byte) (int64, error) {
 	var offset int64
 

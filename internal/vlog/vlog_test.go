@@ -6,6 +6,29 @@ import (
 	"testing"
 )
 
+func BenchmarkVLogAppend(b *testing.B) {
+	dir := b.TempDir()
+
+	v, err := OpenVLog(dir)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer v.Close()
+
+	entry := Entry{
+		key:   []byte("benchmark-key"),
+		value: []byte("benchmark-value"),
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := v.Append(entry); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkVLogRead(b *testing.B) {
 	dir := b.TempDir()
 
@@ -198,7 +221,7 @@ func TestRotate(t *testing.T) {
 	}
 	defer v.Close()
 
-	if err := v.Rotate(); err != nil {
+	if err := v.rotate(); err != nil {
 		t.Fatalf("Rotate() error = %v", err)
 	}
 
