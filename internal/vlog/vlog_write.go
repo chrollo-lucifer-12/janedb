@@ -1,7 +1,6 @@
 package vlog
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,9 +22,7 @@ func (v *VLog) Rotate() error {
 	}
 
 	v.activeFid = newFid
-	v.active = file
-	v.files[v.activeFid] = file
-	v.writer = bufio.NewWriterSize(file, 64*1024)
+	v.files[v.activeFid] = &logFile{file: file}
 	v.offset = 0
 
 	return nil
@@ -33,30 +30,35 @@ func (v *VLog) Rotate() error {
 
 func (v *VLog) Append(entry Entry) (ValuePointer, error) {
 
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	if v.offset >= MaxFileSize {
 		if err := v.Rotate(); err != nil {
 			return ValuePointer{}, fmt.Errorf("append entry: %w", err)
 		}
 	}
 
-	v.mu.Lock()
-
-	if err := EncodeEntry(entry, v.writer); err != nil {
-		return ValuePointer{}, fmt.Errorf("append entry: %w", err)
+	buf, err := EncodeEntry(entry)
+	if err != nil {
+		return ValuePointer{}, err
 	}
 
-	v.mu.Unlock()
+	entryLen := int64(len(buf))
+
+	active := v.files[v.activeFid]
+
+	copy(active.data[v.offset:v.offset+entryLen], buf)
 
 	valueOffset := v.offset + 8 + int64(len(entry.key))
-	valueLen := int64(len(entry.value))
 
 	ptr := ValuePointer{
 		Fid:    v.activeFid,
 		Offset: valueOffset,
-		Len:    valueLen,
+		Len:    int64(len(entry.value)),
 	}
 
-	v.offset += 8 + int64(len(entry.key)) + valueLen
+	v.offset += entryLen
 
 	return ptr, nil
 }

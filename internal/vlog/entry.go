@@ -11,28 +11,23 @@ type Entry struct {
 	value []byte
 }
 
-func EncodeEntry(entry Entry, w io.Writer) error {
+func NewEntry(key, value []byte) Entry {
+	return Entry{key: key, value: value}
+}
+
+func EncodeEntry(entry Entry) ([]byte, error) {
 	keyLen := len(entry.key)
 	valueLen := len(entry.value)
 
-	var header [8]byte
+	buf := make([]byte, 8+keyLen+valueLen)
 
-	binary.BigEndian.PutUint32(header[0:4], uint32(keyLen))
-	binary.BigEndian.PutUint32(header[4:8], uint32(valueLen))
+	binary.BigEndian.PutUint32(buf[0:4], uint32(keyLen))
+	binary.BigEndian.PutUint32(buf[4:8], uint32(valueLen))
 
-	if _, err := w.Write(header[:]); err != nil {
-		return fmt.Errorf("encode entry: write header: %w", err)
-	}
+	copy(buf[8:8+keyLen], entry.key)
+	copy(buf[8+keyLen:], entry.value)
 
-	if _, err := w.Write(entry.key); err != nil {
-		return fmt.Errorf("encode entry: write key: %w", err)
-	}
-
-	if _, err := w.Write(entry.value); err != nil {
-		return fmt.Errorf("encode entry: write value: %w", err)
-	}
-
-	return nil
+	return buf, nil
 }
 
 func DecodeEntry(r io.Reader) (Entry, error) {

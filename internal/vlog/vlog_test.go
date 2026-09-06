@@ -18,7 +18,7 @@ func BenchmarkVLogRead(b *testing.B) {
 	const numPtrs = 1000
 
 	ptrs := make([]ValuePointer, numPtrs)
-	results := make([]ReadResult, numPtrs)
+	bufs := make([][]byte, numPtrs)
 
 	for i := 0; i < numPtrs; i++ {
 		entry := Entry{
@@ -32,8 +32,7 @@ func BenchmarkVLogRead(b *testing.B) {
 		}
 
 		ptrs[i] = ptr
-
-		results[i].Value = make([]byte, ptr.Len)
+		bufs[i] = make([]byte, ptr.Len)
 	}
 
 	if err := v.Sync(); err != nil {
@@ -43,7 +42,11 @@ func BenchmarkVLogRead(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		v.Read(ptrs, results)
+		for j := 0; j < numPtrs; j++ {
+			if err := v.ReadValue(ptrs[j], bufs[j]); err != nil {
+				b.Fatal(err)
+			}
+		}
 	}
 }
 
@@ -62,10 +65,6 @@ func TestOpenVLog(t *testing.T) {
 
 	if v.offset != 0 {
 		t.Fatalf("offset = %d, want 0", v.offset)
-	}
-
-	if v.active == nil {
-		t.Fatal("active file is nil")
 	}
 
 	if len(v.files) != 1 {
@@ -209,10 +208,6 @@ func TestRotate(t *testing.T) {
 
 	if v.offset != 0 {
 		t.Fatalf("offset = %d, want 0", v.offset)
-	}
-
-	if v.active == nil {
-		t.Fatal("active file is nil")
 	}
 
 	if len(v.files) != 2 {
