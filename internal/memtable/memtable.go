@@ -52,7 +52,22 @@ func (m *Memtable) Get(key []byte, buf []byte) bool {
 		return false
 	}
 
+	if ptr.Len == 0 {
+		return false
+	}
+
 	m.vlog.ReadValue(ptr, buf)
 
 	return true
+}
+
+func (m *Memtable) Delete(key []byte) error {
+	ptr, err := m.vlog.Append(vlog.NewEntry(key, nil))
+	if err != nil {
+		return fmt.Errorf("memtable delete: %w", err)
+	}
+
+	m.skl.Insert(key, ptr)
+
+	return nil
 }
