@@ -143,6 +143,37 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 	}
 }
 
+func (skl *Skiplist) GetSize() uint64 {
+	return uint64(skl.arena.n)
+}
+
+type Iterator struct {
+	skl   *Skiplist
+	node  uint32
+	Key   []byte
+	Value vlog.ValuePointer
+}
+
+func GetIterator(skl *Skiplist) *Iterator {
+	return &Iterator{skl: skl, node: skl.head}
+}
+
+func (i *Iterator) GetNext() bool {
+
+	if i.node == 0 {
+		return false
+	}
+
+	node := i.skl.arena.getNode(i.node)
+
+	i.Key = i.skl.arena.getBytes(node.keyOffset, node.keySize)
+	i.Value = node.value
+
+	i.node = i.skl.arena.getNext(i.node, 0)
+
+	return true
+}
+
 func randomLevel() uint8 {
 	lvl := uint8(0)
 	for rand.Float64() < P && lvl < MaxLevel {

@@ -34,3 +34,33 @@ func TestGet(t *testing.T) {
 		}
 	}
 }
+
+func TestDelete(t *testing.T) {
+
+	dir := t.TempDir()
+
+	m, err := NewMemtable(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	key := []byte("foo")
+	value := []byte("bar")
+
+	if err := m.Put(key, value); err != nil {
+		t.Fatal(err)
+	}
+
+	buf := make([]byte, len(value))
+	if !m.Get(key, buf) {
+		t.Fatal("expected key to exist")
+	}
+
+	if err := m.Delete(key); err != nil {
+		t.Fatal(err)
+	}
+
+	if m.Get(key, buf) {
+		t.Fatal("expected key to be deleted")
+	}
+}

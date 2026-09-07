@@ -4,12 +4,17 @@ import (
 	"fmt"
 
 	"github.com/janedb/internal/skl"
+	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
 )
+
+const MaxSize = 1 << 20
 
 type Memtable struct {
 	skl  *skl.Skiplist
 	vlog *vlog.VLog
+
+	size uint64
 }
 
 func NewMemtable(dir string) (*Memtable, error) {
@@ -34,12 +39,20 @@ func NewMemtable(dir string) (*Memtable, error) {
 }
 
 func (m *Memtable) Put(key []byte, value []byte) error {
+
+	if m.size+m.skl.GetSize() > MaxSize {
+		if err := m.flush(); err != nil {
+			return err
+		}
+	}
+
 	ptr, err := m.vlog.Append(vlog.NewEntry(key, value))
 
 	if err != nil {
 		return fmt.Errorf("memtable put: %w", err)
 	}
 
+	m.size += uint64(len(key))
 	m.skl.Insert(key, ptr)
 
 	return nil
@@ -68,6 +81,32 @@ func (m *Memtable) Delete(key []byte) error {
 	}
 
 	m.skl.Insert(key, ptr)
+
+	return nil
+}
+
+func (m *Memtable) flush() error {
+	it := skl.GetIterator(m.skl)
+
+	sst, err := sstable.Create("")
+	if err != nil {
+		return err
+	}
+
+	for {
+		if !it.GetNext() {
+			break
+		}
+
+		if err := sst.Write(sstable.SSTableEntry{
+			Key:   it.Key,
+			Value: it.Value,
+		}); err != nil {
+			return err
+		}
+	}
+
+	m.skl = skl.NewSkiplist()
 
 	return nil
 }
