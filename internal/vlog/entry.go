@@ -3,7 +3,6 @@ package vlog
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 )
 
 type Entry struct {
@@ -30,29 +29,28 @@ func EncodeEntry(entry Entry, buf []byte) int {
 	return n
 }
 
-func DecodeEntry(r io.Reader) (Entry, error) {
+func DecodeEntry(buf []byte) (Entry, error) {
 
 	var entry Entry
 
-	var header [8]byte
-
-	if _, err := io.ReadFull(r, header[:]); err != nil {
-		return entry, fmt.Errorf("decode entry: read header: %w", err)
+	if len(buf) < 8 {
+		return entry, fmt.Errorf("decode entry: buffer too small")
 	}
 
-	keyLen := binary.BigEndian.Uint32(header[0:4])
-	valueLen := binary.BigEndian.Uint32(header[4:8])
+	keyLen := binary.BigEndian.Uint32(buf[0:4])
+	valueLen := binary.BigEndian.Uint32(buf[4:8])
+
+	totalLen := 8 + int(keyLen) + int(valueLen)
+
+	if len(buf) < totalLen {
+		return entry, fmt.Errorf("decode entry: incomplete entry")
+	}
 
 	entry.key = make([]byte, keyLen)
 	entry.value = make([]byte, valueLen)
 
-	if _, err := io.ReadFull(r, entry.key); err != nil {
-		return Entry{}, fmt.Errorf("decode entry: read key: %w", err)
-	}
-
-	if _, err := io.ReadFull(r, entry.value); err != nil {
-		return Entry{}, fmt.Errorf("decode entry: read value: %w", err)
-	}
+	copy(entry.key, buf[8:8+keyLen])
+	copy(entry.value, buf[8+keyLen:totalLen])
 
 	return entry, nil
 }

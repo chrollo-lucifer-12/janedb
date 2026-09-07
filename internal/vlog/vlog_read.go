@@ -5,6 +5,34 @@ import (
 	"io"
 )
 
+func (v *VLog) Recover() map[string]ValuePointer {
+
+	values := make(map[string]ValuePointer)
+
+	for fid, file := range v.files {
+
+		start := int64(0)
+
+		for start < int64(len(file.data)) {
+
+			entry, err := DecodeEntry(file.data)
+			if err != nil {
+				break
+			}
+
+			values[string(entry.key)] = ValuePointer{
+				Fid:    fid,
+				Offset: start + 8 + int64(len(entry.key)),
+				Len:    int64(len(entry.value)),
+			}
+
+			start += 8 + int64(len(entry.key)) + int64(len(entry.value))
+		}
+	}
+
+	return values
+}
+
 func (v *VLog) ReadValue(ptr ValuePointer, buf []byte) error {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

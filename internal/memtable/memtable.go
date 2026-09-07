@@ -19,8 +19,16 @@ func NewMemtable(dir string) (*Memtable, error) {
 		return nil, err
 	}
 
+	skl := skl.NewSkiplist()
+
+	values := v.Recover()
+
+	for k, v := range values {
+		skl.Insert([]byte(k), v)
+	}
+
 	return &Memtable{
-		skl:  skl.NewSkiplist(),
+		skl:  skl,
 		vlog: v,
 	}, nil
 }
