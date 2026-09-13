@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/janedb/internal/db"
+	"github.com/janedb/internal/lsm"
 )
 
 func main() {
 
-	d, err := db.NewDB()
+	d, err := lsm.OpenLSM()
 	if err != nil {
 		panic(err)
 	}

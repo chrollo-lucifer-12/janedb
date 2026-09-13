@@ -2,7 +2,10 @@ package memtable
 
 import (
 	"fmt"
+	"path/filepath"
+	"uuid"
 
+	"github.com/janedb/internal/flags"
 	"github.com/janedb/internal/skl"
 	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
@@ -28,8 +31,6 @@ func NewMemtable(dir string) (*Memtable, error) {
 
 	values := v.Recover()
 
-	fmt.Println(values)
-
 	for k, v := range values {
 		skl.Insert([]byte(k), v)
 	}
@@ -41,12 +42,6 @@ func NewMemtable(dir string) (*Memtable, error) {
 }
 
 func (m *Memtable) Put(key []byte, value []byte) error {
-
-	if m.size+m.skl.GetSize() > MaxSize {
-		if err := m.flush(); err != nil {
-			return err
-		}
-	}
 
 	ptr, err := m.vlog.Append(vlog.NewEntry(key, value))
 
@@ -87,28 +82,62 @@ func (m *Memtable) Delete(key []byte) error {
 	return nil
 }
 
-func (m *Memtable) flush() error {
+func (m *Memtable) Flush() (sstable.SSTableMeta, error) {
 	it := skl.GetIterator(m.skl)
 
-	sst, err := sstable.Create("")
-	if err != nil {
-		return err
+	sstmeta := sstable.SSTableMeta{
+		Size:  0,
+		Level: 0,
+		ID:    uuid.New().String(),
 	}
+
+	sst, err := sstable.Create(filepath.Join(flags.SstDir, sstmeta.ID))
+	if err != nil {
+		return sstable.SSTableMeta{}, err
+	}
+
+	var smallest, largest []byte
+
+	first := true
 
 	for {
 		if !it.GetNext() {
 			break
 		}
 
-		if err := sst.Write(sstable.SSTableEntry{
+		if first {
+			smallest = append([]byte(nil), it.Key...)
+			first = false
+		}
+		largest = append(largest[:0], it.Key...)
+
+		n, err := sst.Write(sstable.SSTableEntry{
 			Key:   it.Key,
 			Value: it.Value,
-		}); err != nil {
-			return err
+		})
+		if err != nil {
+			return sstable.SSTableMeta{}, err
 		}
+
+		sstmeta.Size += n
+	}
+
+	sstmeta.Smallest = smallest
+	sstmeta.Largest = largest
+
+	if err := sstable.SaveManifest(sstmeta); err != nil {
+		return sstable.SSTableMeta{}, err
 	}
 
 	m.skl = skl.NewSkiplist()
 
-	return nil
+	return sstable.SSTableMeta{}, nil
+}
+
+func (m *Memtable) IsOverflow() bool {
+	return m.size+m.skl.GetSize() > MaxSize
+}
+
+func (m *Memtable) ReadValue(ptr vlog.ValuePointer, buf []byte) {
+	m.vlog.ReadValue(ptr, buf)
 }
