@@ -2,6 +2,7 @@ package skl
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand/v2"
 
 	"github.com/janedb/internal/vlog"
@@ -113,7 +114,7 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 
 	nextOffset := skl.arena.getNext(curr.towerOffset, 0)
 
-	if nextOffset != 0 {
+	if nextOffset != invalidOffset {
 		next := skl.arena.getNode(nextOffset)
 		nextKey := skl.arena.getBytes(next.keyOffset, next.keySize)
 
@@ -141,6 +142,9 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 		skl.arena.setNext(newNode.towerOffset, i, nextOffset)
 		skl.arena.setNext(prev.towerOffset, i, newOffset)
 	}
+
+	ptr, _ := skl.Search(key)
+	fmt.Println(ptr)
 }
 
 func (skl *Skiplist) GetSize() uint64 {
