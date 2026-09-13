@@ -28,6 +28,8 @@ func NewMemtable(dir string) (*Memtable, error) {
 
 	values := v.Recover()
 
+	fmt.Println(values)
+
 	for k, v := range values {
 		skl.Insert([]byte(k), v)
 	}

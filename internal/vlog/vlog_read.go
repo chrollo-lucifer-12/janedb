@@ -13,9 +13,9 @@ func (v *VLog) Recover() map[string]ValuePointer {
 
 		start := int64(0)
 
-		for start < int64(len(file.data)) {
+		for start < v.offset {
 
-			entry, err := DecodeEntry(file.data)
+			entry, err := DecodeEntry(file.data[start:])
 			if err != nil {
 				break
 			}

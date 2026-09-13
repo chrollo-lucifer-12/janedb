@@ -2,7 +2,6 @@ package skl
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand/v2"
 
 	"github.com/janedb/internal/vlog"
@@ -143,8 +142,6 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 		skl.arena.setNext(prev.towerOffset, i, newOffset)
 	}
 
-	ptr, _ := skl.Search(key)
-	fmt.Println(ptr)
 }
 
 func (skl *Skiplist) GetSize() uint64 {
