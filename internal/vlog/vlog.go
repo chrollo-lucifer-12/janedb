@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/edsrzf/mmap-go"
+	"golang.org/x/sys/unix"
 )
 
 const MaxFileSize = 1 << 20
@@ -87,4 +88,36 @@ func (v *VLog) Close() error {
 	}
 
 	return nil
+}
+
+func (v *VLog) Sync() error {
+	if err := v.data.Flush(); err != nil {
+		return err
+	}
+
+	return v.file.Sync()
+}
+
+func (v *VLog) SetTail(tail int64) {
+	v.tailmu.Lock()
+	v.tail = tail
+	v.tailmu.Unlock()
+}
+
+func (v *VLog) Reclaim(start, end int64) error {
+	if end <= start {
+		return nil
+	}
+
+	const (
+		punchHole = 0x02
+		keepSize  = 0x01
+	)
+
+	return unix.Fallocate(
+		int(v.file.Fd()),
+		punchHole|keepSize,
+		start,
+		end-start,
+	)
 }

@@ -43,7 +43,7 @@ func OpenLSM() (*LSM, error) {
 }
 
 func (lsm *LSM) Close() error {
-	return lsm.Close()
+	return lsm.m.Close()
 }
 
 func (lsm *LSM) Put(key []byte, value []byte) error {

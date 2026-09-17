@@ -13,4 +13,8 @@ func main() {
 	}
 	defer d.Close()
 
+	buf := make([]byte, 10)
+	d.Get([]byte("k"), buf)
+
+	log.Println(string(buf))
 }

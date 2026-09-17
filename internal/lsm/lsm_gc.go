@@ -4,37 +4,61 @@ import (
 	"github.com/janedb/internal/vlog"
 )
 
-func (lsm *LSM) RunGarbageCollector() {
+type update struct {
+	key []byte
+	ptr vlog.ValuePointer
+}
+
+func (lsm *LSM) RunGarbageCollector() error {
 
 	it := lsm.v.Iterator()
+	var updates []update
+
+	oldTail := it.GetStart()
 
 	for {
 
-		entry, vptr, ok := it.Next()
+		entry, oldPtr, ok := it.Next()
 		if !ok {
 			break
 		}
 
 		ptr, err := lsm.getPtr(entry.Key)
-		if err == nil {
-			if vptr == ptr {
-				if err := lsm.appendtoHead(entry); err != nil {
-					return
-				}
-			}
+		if err != nil {
+			continue
 		}
 
+		if oldPtr != ptr {
+			continue
+		}
+
+		newPtr, err := lsm.v.Append(entry)
+		if err != nil {
+			return err
+		}
+
+		updates = append(updates, update{
+			key: append([]byte(nil), entry.Key...),
+			ptr: newPtr,
+		})
 	}
 
-}
+	if err := lsm.v.Sync(); err != nil {
+		return err
+	}
 
-func (lsm *LSM) appendtoHead(entry vlog.Entry) error {
-	ptr, err := lsm.v.Append(entry)
+	for _, u := range updates {
+		lsm.m.UpdatePtr(u.key, u.ptr)
+	}
+
+	meta, err := lsm.m.Flush()
 	if err != nil {
 		return err
 	}
 
-	lsm.m.UpdatePtr(entry.Key, ptr)
+	lsm.level = append(lsm.level, meta)
 
-	return nil
+	lsm.v.SetTail(it.GetStart())
+
+	return lsm.v.Reclaim(oldTail, it.GetStart())
 }
