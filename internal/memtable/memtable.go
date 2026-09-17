@@ -41,6 +41,10 @@ func NewMemtable(dir string) (*Memtable, error) {
 	}, nil
 }
 
+func (m *Memtable) Close() error {
+	return m.vlog.Close()
+}
+
 func (m *Memtable) Put(key []byte, value []byte) error {
 
 	ptr, err := m.vlog.Append(vlog.NewEntry(key, value))
