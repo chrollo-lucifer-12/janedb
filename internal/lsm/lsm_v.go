@@ -2,6 +2,7 @@ package lsm
 
 import (
 	"encoding/binary"
+	"errors"
 	"os"
 
 	"github.com/janedb/internal/flags"
@@ -50,6 +51,9 @@ func SaveTail(tail int64) error {
 func GetMarkers() (int64, int64, error) {
 	file, err := os.Open(flags.VlogMarkers)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, 0, nil
+		}
 		return -1, -1, err
 	}
 

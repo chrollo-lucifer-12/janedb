@@ -45,6 +45,13 @@ func OpenLSM() (*LSM, error) {
 }
 
 func (lsm *LSM) Close() error {
+
+	SaveHead(lsm.v.GetHead())
+
+	if err := lsm.v.Close(); err != nil {
+		return err
+	}
+
 	return lsm.m.Close()
 }
 
