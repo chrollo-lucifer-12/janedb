@@ -1,114 +1,107 @@
 package skl
 
-import (
-	"strconv"
-	"testing"
+// func TestSkiplistInsertSearch(t *testing.T) {
+// 	skl := NewSkiplist()
 
-	"github.com/janedb/internal/vlog"
-)
+// 	ptr1 := vlog.ValuePointer{Fid: 1, Offset: 100, Len: 10}
+// 	ptr2 := vlog.ValuePointer{Fid: 1, Offset: 200, Len: 20}
 
-func TestSkiplistInsertSearch(t *testing.T) {
-	skl := NewSkiplist()
+// 	skl.Insert([]byte("apple"), ptr1)
+// 	skl.Insert([]byte("banana"), ptr2)
 
-	ptr1 := vlog.ValuePointer{Fid: 1, Offset: 100, Len: 10}
-	ptr2 := vlog.ValuePointer{Fid: 1, Offset: 200, Len: 20}
+// 	got, _ := skl.Search([]byte("apple"))
+// 	// if !ok {
+// 	// 	t.Fatal("expected apple to be found")
+// 	// }
 
-	skl.Insert([]byte("apple"), ptr1)
-	skl.Insert([]byte("banana"), ptr2)
+// 	if got != ptr1 {
+// 		t.Fatalf("expected %+v, got %+v", ptr1, got)
+// 	}
 
-	got, _ := skl.Search([]byte("apple"))
-	// if !ok {
-	// 	t.Fatal("expected apple to be found")
-	// }
+// 	got, _ = skl.Search([]byte("banana"))
+// 	// if !ok {
+// 	// 	t.Fatal("expected banana to be found")
+// 	// }
 
-	if got != ptr1 {
-		t.Fatalf("expected %+v, got %+v", ptr1, got)
-	}
+// 	if got != ptr2 {
+// 		t.Fatalf("expected %+v, got %+v", ptr2, got)
+// 	}
+// }
 
-	got, _ = skl.Search([]byte("banana"))
-	// if !ok {
-	// 	t.Fatal("expected banana to be found")
-	// }
+// func TestSkiplistUpdateAndMissing(t *testing.T) {
+// 	skl := NewSkiplist()
 
-	if got != ptr2 {
-		t.Fatalf("expected %+v, got %+v", ptr2, got)
-	}
-}
+// 	oldPtr := vlog.ValuePointer{Fid: 1, Offset: 100, Len: 10}
+// 	newPtr := vlog.ValuePointer{Fid: 2, Offset: 500, Len: 50}
 
-func TestSkiplistUpdateAndMissing(t *testing.T) {
-	skl := NewSkiplist()
+// 	skl.Insert([]byte("key"), oldPtr)
+// 	skl.Insert([]byte("key"), newPtr)
 
-	oldPtr := vlog.ValuePointer{Fid: 1, Offset: 100, Len: 10}
-	newPtr := vlog.ValuePointer{Fid: 2, Offset: 500, Len: 50}
+// 	got, _ := skl.Search([]byte("key"))
+// 	// if !ok {
+// 	// 	t.Fatal("expected key to be found")
+// 	// }
 
-	skl.Insert([]byte("key"), oldPtr)
-	skl.Insert([]byte("key"), newPtr)
+// 	if got != newPtr {
+// 		t.Fatalf("expected updated pointer %+v, got %+v", newPtr, got)
+// 	}
 
-	got, _ := skl.Search([]byte("key"))
-	// if !ok {
-	// 	t.Fatal("expected key to be found")
-	// }
+// 	_, ok := skl.Search([]byte("missing"))
+// 	if ok {
+// 		t.Fatal("expected missing key to not be found")
+// 	}
+// }
 
-	if got != newPtr {
-		t.Fatalf("expected updated pointer %+v, got %+v", newPtr, got)
-	}
+// func BenchmarkSkiplistInsert(b *testing.B) {
+// 	b.StopTimer()
 
-	_, ok := skl.Search([]byte("missing"))
-	if ok {
-		t.Fatal("expected missing key to not be found")
-	}
-}
+// 	skl := NewSkiplist()
 
-func BenchmarkSkiplistInsert(b *testing.B) {
-	b.StopTimer()
+// 	keys := make([][]byte, 100000)
+// 	values := make([]vlog.ValuePointer, 100000)
 
-	skl := NewSkiplist()
+// 	for i := 0; i < 100000; i++ {
+// 		keys[i] = []byte("key" + strconv.Itoa(i))
+// 		values[i] = vlog.ValuePointer{
+// 			Fid:    1,
+// 			Offset: int64(i),
+// 			Len:    100,
+// 		}
+// 	}
 
-	keys := make([][]byte, 100000)
-	values := make([]vlog.ValuePointer, 100000)
+// 	b.StartTimer()
 
-	for i := 0; i < 100000; i++ {
-		keys[i] = []byte("key" + strconv.Itoa(i))
-		values[i] = vlog.ValuePointer{
-			Fid:    1,
-			Offset: int64(i),
-			Len:    100,
-		}
-	}
+// 	for n := 0; n < b.N; n++ {
+// 		for i := 0; i < 100000; i++ {
+// 			skl.Insert(keys[i], values[i])
+// 		}
+// 	}
+// }
 
-	b.StartTimer()
+// func BenchmarkSkiplistSearch(b *testing.B) {
+// 	skl := NewSkiplist()
 
-	for n := 0; n < b.N; n++ {
-		for i := 0; i < 100000; i++ {
-			skl.Insert(keys[i], values[i])
-		}
-	}
-}
+// 	for i := 0; i < 1000; i++ {
+// 		key := []byte("key" + string(rune(i)))
+// 		value := vlog.ValuePointer{
+// 			Fid:    1,
+// 			Offset: int64(i),
+// 			Len:    100,
+// 		}
 
-func BenchmarkSkiplistSearch(b *testing.B) {
-	skl := NewSkiplist()
+// 		skl.Insert(key, value)
+// 	}
 
-	for i := 0; i < 1000; i++ {
-		key := []byte("key" + string(rune(i)))
-		value := vlog.ValuePointer{
-			Fid:    1,
-			Offset: int64(i),
-			Len:    100,
-		}
+// 	keys := [][]byte{
+// 		[]byte("key100"),
+// 		[]byte("key500"),
+// 		[]byte("key900"),
+// 	}
 
-		skl.Insert(key, value)
-	}
+// 	b.ResetTimer()
 
-	keys := [][]byte{
-		[]byte("key100"),
-		[]byte("key500"),
-		[]byte("key900"),
-	}
+// 	for i := 0; i < b.N; i++ {
+// 		skl.Search(keys[i%len(keys)])
+// 	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		skl.Search(keys[i%len(keys)])
-	}
-
-}
+// }

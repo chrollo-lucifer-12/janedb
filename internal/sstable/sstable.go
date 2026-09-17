@@ -11,7 +11,7 @@ import (
 	"github.com/janedb/internal/vlog"
 )
 
-const VPSize = 20
+const VPSize = 16
 
 type SSTableMeta struct {
 	ID       string
@@ -81,11 +81,10 @@ func (s *SSTable) Write(entry SSTableEntry) (uint64, error) {
 
 	s.file.Write(entry.Key)
 
-	binary.Write(s.file, binary.BigEndian, entry.Value.Fid)
 	binary.Write(s.file, binary.BigEndian, entry.Value.Offset)
 	binary.Write(s.file, binary.BigEndian, entry.Value.Len)
 
-	return 24 + uint64(keyLen), nil
+	return 20 + uint64(keyLen), nil
 }
 
 func SaveManifest(meta SSTableMeta) error {
