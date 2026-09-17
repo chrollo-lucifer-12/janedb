@@ -3,7 +3,9 @@ package lsm
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
+	"time"
 
 	"github.com/janedb/internal/flags"
 	"github.com/janedb/internal/memtable"
@@ -11,11 +13,16 @@ import (
 	"github.com/janedb/internal/vlog"
 )
 
+const GCThreshold = 128
+
 type LSM struct {
 	m *memtable.Memtable
 	v *vlog.VLog
 
 	level []sstable.SSTableMeta
+
+	gcStop chan struct{}
+	gcDone chan struct{}
 }
 
 func OpenLSM() (*LSM, error) {
@@ -45,8 +52,18 @@ func OpenLSM() (*LSM, error) {
 }
 
 func (lsm *LSM) Close() error {
+	if lsm.gcStop != nil {
+		close(lsm.gcStop)
+		<-lsm.gcDone
+	}
 
-	SaveHead(lsm.v.GetHead())
+	if err := SaveTail(lsm.v.GetTail()); err != nil {
+		return err
+	}
+
+	if err := SaveHead(lsm.v.GetHead()); err != nil {
+		return err
+	}
 
 	if err := lsm.v.Close(); err != nil {
 		return err
@@ -56,6 +73,10 @@ func (lsm *LSM) Close() error {
 }
 
 func (lsm *LSM) Put(key []byte, value []byte) error {
+
+	// if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
+	// 	lsm.startGC()
+	// }
 
 	if lsm.m.IsOverflow() {
 
@@ -116,4 +137,30 @@ func (lsm *LSM) getPtr(key []byte) (vlog.ValuePointer, error) {
 	}
 
 	return vlog.ValuePointer{}, fmt.Errorf("key not found")
+}
+
+func (lsm *LSM) startGC() {
+	lsm.gcStop = make(chan struct{})
+	lsm.gcDone = make(chan struct{})
+
+	go func() {
+		defer close(lsm.gcDone)
+
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
+					if err := lsm.RunGarbageCollector(); err != nil {
+						log.Printf("gc: %v", err)
+					}
+				}
+
+			case <-lsm.gcStop:
+				return
+			}
+		}
+	}()
 }

@@ -72,3 +72,7 @@ func GetMarkers() (int64, int64, error) {
 
 	return tail, head, nil
 }
+
+func (lsm *LSM) VLogHead() int64 { return lsm.v.GetHead() }
+
+func (lsm *LSM) VLogTail() int64 { return lsm.v.GetTail() }

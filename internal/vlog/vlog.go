@@ -120,6 +120,10 @@ func (v *VLog) GetHead() int64 {
 	return v.head
 }
 
+func (v *VLog) GetTail() int64 {
+	return v.tail
+}
+
 func (v *VLog) Reclaim(start, end int64) error {
 	if end <= start {
 		return nil
