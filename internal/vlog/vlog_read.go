@@ -20,17 +20,17 @@ func (v *VLog) Recover() map[string]ValuePointer {
 				break
 			}
 
-			if entry.value == nil {
-				delete(values, string(entry.key))
+			if entry.Value == nil {
+				delete(values, string(entry.Key))
 			} else {
-				values[string(entry.key)] = ValuePointer{
+				values[string(entry.Key)] = ValuePointer{
 					Fid:    fid,
-					Offset: start + 8 + int64(len(entry.key)),
-					Len:    int64(len(entry.value)),
+					Offset: start + 8 + int64(len(entry.Key)),
+					Len:    int64(len(entry.Value)),
 				}
 			}
 
-			start += 8 + int64(len(entry.key)) + int64(len(entry.value))
+			start += 8 + int64(len(entry.Key)) + int64(len(entry.Value))
 		}
 	}
 

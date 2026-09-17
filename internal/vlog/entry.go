@@ -6,25 +6,21 @@ import (
 )
 
 type Entry struct {
-	key   []byte
-	value []byte
-}
-
-func NewEntry(key, value []byte) Entry {
-	return Entry{key: key, value: value}
+	Key   []byte
+	Value []byte
 }
 
 func EncodeEntry(entry Entry, buf []byte) int {
-	keyLen := len(entry.key)
-	valueLen := len(entry.value)
+	keyLen := len(entry.Key)
+	valueLen := len(entry.Value)
 
 	n := 8 + keyLen + valueLen
 
 	binary.BigEndian.PutUint32(buf[0:4], uint32(keyLen))
 	binary.BigEndian.PutUint32(buf[4:8], uint32(valueLen))
 
-	copy(buf[8:8+keyLen], entry.key)
-	copy(buf[8+keyLen:], entry.value)
+	copy(buf[8:8+keyLen], entry.Key)
+	copy(buf[8+keyLen:], entry.Value)
 
 	return n
 }
@@ -46,11 +42,11 @@ func DecodeEntry(buf []byte) (Entry, error) {
 		return entry, fmt.Errorf("decode entry: incomplete entry")
 	}
 
-	entry.key = make([]byte, keyLen)
-	entry.value = make([]byte, valueLen)
+	entry.Key = make([]byte, keyLen)
+	entry.Value = make([]byte, valueLen)
 
-	copy(entry.key, buf[8:8+keyLen])
-	copy(entry.value, buf[8+keyLen:totalLen])
+	copy(entry.Key, buf[8:8+keyLen])
+	copy(entry.Value, buf[8+keyLen:totalLen])
 
 	return entry, nil
 }

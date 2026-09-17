@@ -20,12 +20,7 @@ type Memtable struct {
 	size uint64
 }
 
-func NewMemtable(dir string) (*Memtable, error) {
-
-	v, err := vlog.OpenVLog(dir)
-	if err != nil {
-		return nil, err
-	}
+func NewMemtable(v *vlog.VLog) (*Memtable, error) {
 
 	skl := skl.NewSkiplist()
 
@@ -47,7 +42,7 @@ func (m *Memtable) Close() error {
 
 func (m *Memtable) Put(key []byte, value []byte) error {
 
-	ptr, err := m.vlog.Append(vlog.NewEntry(key, value))
+	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: value})
 
 	if err != nil {
 		return fmt.Errorf("memtable put: %w", err)
@@ -59,24 +54,28 @@ func (m *Memtable) Put(key []byte, value []byte) error {
 	return nil
 }
 
-func (m *Memtable) Get(key []byte, buf []byte) bool {
-	ptr, ok := m.skl.Search(key)
+func (m *Memtable) UpdatePtr(key []byte, ptr vlog.ValuePointer) {
+	_, ok := m.skl.Search(key)
 
 	if !ok {
-		return false
+		m.size += uint64(len(key))
 	}
+
+	m.skl.Insert(key, ptr)
+}
+
+func (m *Memtable) Get(key []byte) (vlog.ValuePointer, bool) {
+	ptr, ok := m.skl.Search(key)
 
 	if ptr.Len == 0 {
-		return false
+		return ptr, false
 	}
 
-	m.vlog.ReadValue(ptr, buf)
-
-	return true
+	return ptr, ok
 }
 
 func (m *Memtable) Delete(key []byte) error {
-	ptr, err := m.vlog.Append(vlog.NewEntry(key, nil))
+	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: nil})
 	if err != nil {
 		return fmt.Errorf("memtable delete: %w", err)
 	}

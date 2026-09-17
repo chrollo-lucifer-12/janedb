@@ -14,7 +14,7 @@ func (v *VLog) Append(entry Entry) (ValuePointer, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	entryLen := int64(8 + len(entry.key) + len(entry.value))
+	entryLen := int64(8 + len(entry.Key) + len(entry.Value))
 
 	if v.offset+entryLen > MaxFileSize {
 		if err := v.rotateLocked(); err != nil {
@@ -30,8 +30,8 @@ func (v *VLog) Append(entry Entry) (ValuePointer, error) {
 
 	ptr := ValuePointer{
 		Fid:    v.activeFid,
-		Offset: start + 8 + int64(len(entry.key)),
-		Len:    int64(len(entry.value)),
+		Offset: start + 8 + int64(len(entry.Key)),
+		Len:    int64(len(entry.Value)),
 	}
 
 	v.offset += entryLen
