@@ -27,7 +27,9 @@ func OpenLSM() (*LSM, error) {
 	var err error
 	l := &LSM{}
 
-	l.v, err = vlog.OpenVLog(flags.VlogDir)
+	tail, head, err := GetMarkers()
+
+	l.v, err = vlog.OpenVLog(flags.VlogDir, head, tail)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +51,9 @@ func (lsm *LSM) Close() error {
 func (lsm *LSM) Put(key []byte, value []byte) error {
 
 	if lsm.m.IsOverflow() {
+
+		SaveHead(lsm.v.GetHead())
+
 		meta, err := lsm.m.Flush()
 		if err != nil {
 			return err

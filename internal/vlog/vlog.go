@@ -31,7 +31,7 @@ type ValuePointer struct {
 	Len    int64
 }
 
-func OpenVLog(path string) (*VLog, error) {
+func OpenVLog(path string, head, tail int64) (*VLog, error) {
 	file, err := os.OpenFile(
 		path,
 		os.O_CREATE|os.O_RDWR,
@@ -41,9 +41,17 @@ func OpenVLog(path string) (*VLog, error) {
 		return nil, fmt.Errorf("open vlog: %w", err)
 	}
 
-	if err := file.Truncate(MaxFileSize); err != nil {
+	stat, err := file.Stat()
+	if err != nil {
 		file.Close()
-		return nil, fmt.Errorf("truncate vlog: %w", err)
+		return nil, fmt.Errorf("stat vlog: %w", err)
+	}
+
+	if stat.Size() < MaxFileSize {
+		if err := file.Truncate(MaxFileSize); err != nil {
+			file.Close()
+			return nil, fmt.Errorf("truncate vlog: %w", err)
+		}
 	}
 
 	data, err := mmap.MapRegion(
@@ -59,12 +67,10 @@ func OpenVLog(path string) (*VLog, error) {
 	}
 
 	v := &VLog{
-		logFile: logFile{
-			file: file,
-			data: data,
-		},
-		head: 0,
-		tail: 0,
+		file: file,
+		data: data,
+		head: head,
+		tail: tail,
 	}
 
 	return v, nil
@@ -102,6 +108,16 @@ func (v *VLog) SetTail(tail int64) {
 	v.tailmu.Lock()
 	v.tail = tail
 	v.tailmu.Unlock()
+}
+
+func (v *VLog) SetHead(head int64) {
+	v.headmu.Lock()
+	v.head = head
+	v.headmu.Unlock()
+}
+
+func (v *VLog) GetHead() int64 {
+	return v.head
 }
 
 func (v *VLog) Reclaim(start, end int64) error {

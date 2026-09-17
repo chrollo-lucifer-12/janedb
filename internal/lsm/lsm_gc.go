@@ -58,6 +58,7 @@ func (lsm *LSM) RunGarbageCollector() error {
 
 	lsm.level = append(lsm.level, meta)
 
+	SaveTail(it.GetStart())
 	lsm.v.SetTail(it.GetStart())
 
 	return lsm.v.Reclaim(oldTail, it.GetStart())
