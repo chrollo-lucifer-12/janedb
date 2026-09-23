@@ -83,12 +83,12 @@ func (lsm *LSM) Put(key []byte, value []byte) error {
 
 func (lsm *LSM) Get(key []byte, buf []byte) bool {
 	ptr, ok := lsm.m.Get([]byte(key))
-	if !ok {
-		return false
-	}
+	if ok {
+		if err := lsm.v.ReadValue(ptr, buf); err != nil {
+			return false
+		}
 
-	if err := lsm.v.ReadValue(ptr, buf); err != nil {
-		return false
+		return true
 	}
 
 	ptr, err := lsm.getPtr(key)
@@ -107,11 +107,6 @@ func (lsm *LSM) Delete(key []byte) error {
 }
 
 func (lsm *LSM) getPtr(key []byte) (vlog.ValuePointer, error) {
-
-	ptr, ok := lsm.m.Get([]byte(key))
-	if ok {
-		return ptr, nil
-	}
 
 	for _, meta := range lsm.level {
 		if bytes.Compare(key, meta.Smallest) >= 0 && bytes.Compare(key, meta.Largest) <= 0 {

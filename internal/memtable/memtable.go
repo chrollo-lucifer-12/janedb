@@ -18,6 +18,8 @@ type Memtable struct {
 	skl  *skl.Skiplist
 	vlog *vlog.VLog
 
+	numskeys int
+
 	size uint64
 }
 
@@ -50,6 +52,7 @@ func (m *Memtable) Put(key []byte, value []byte) error {
 	}
 
 	m.size += uint64(len(key))
+	m.numskeys++
 	m.skl.Insert(key, ptr)
 
 	return nil
@@ -82,6 +85,7 @@ func (m *Memtable) Delete(key []byte) error {
 	}
 
 	m.skl.Insert(key, ptr)
+	m.numskeys--
 
 	return nil
 }
@@ -95,7 +99,7 @@ func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 		ID:    uuid.New().String(),
 	}
 
-	sst, err := sstable.Create(filepath.Join(flags.SstDir, sstmeta.ID))
+	sst, err := sstable.Create(filepath.Join(flags.SstDir, sstmeta.ID), m.numskeys)
 	if err != nil {
 		return manifest.SSTableMeta{}, err
 	}
@@ -115,7 +119,7 @@ func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 		}
 		largest = append(largest[:0], it.Key...)
 
-		n, err := sst.Write(sstable.SSTableEntry{
+		n, err := sst.WriteEntry(sstable.SSTableEntry{
 			Key:   it.Key,
 			Value: it.Value,
 		})
@@ -126,6 +130,8 @@ func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 		sstmeta.Size += n
 	}
 
+	sst.WriteBF()
+
 	sstmeta.Smallest = smallest
 	sstmeta.Largest = largest
 
@@ -134,6 +140,7 @@ func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 	}
 
 	m.skl = skl.NewSkiplist()
+	m.numskeys = 0
 
 	return manifest.SSTableMeta{}, nil
 }
