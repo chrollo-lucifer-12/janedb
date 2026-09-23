@@ -1,8 +1,15 @@
 package vlog
 
-func (v *VLog) Recover() map[string]ValuePointer {
+type RecoverEntry struct {
+	Key      []byte
+	Ptr      ValuePointer
+	Sequence uint64
+	VType    uint8
+}
 
-	values := make(map[string]ValuePointer)
+func (v *VLog) Recover() map[string]RecoverEntry {
+
+	values := make(map[string]RecoverEntry)
 
 	start := int64(0)
 
@@ -13,16 +20,19 @@ func (v *VLog) Recover() map[string]ValuePointer {
 			break
 		}
 
-		if entry.Value == nil {
-			delete(values, string(entry.Key))
-		} else {
-			values[string(entry.Key)] = ValuePointer{
-				Offset: start + 8 + int64(len(entry.Key)),
+		valueOffset := start + 8 + int64(len(entry.Key))
+
+		values[string(entry.Key)] = RecoverEntry{
+			Key: []byte(string(entry.Key)),
+			Ptr: ValuePointer{
+				Offset: valueOffset,
 				Len:    int64(len(entry.Value)),
-			}
+			},
+			Sequence: entry.Sequence,
+			VType:    entry.VType,
 		}
 
-		start += 8 + int64(len(entry.Key)) + int64(len(entry.Value))
+		start += 8 + int64(len(entry.Key)) + int64(len(entry.Value)) + 9
 	}
 
 	return values

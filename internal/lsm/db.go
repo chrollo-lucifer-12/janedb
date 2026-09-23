@@ -1,22 +1,32 @@
 package lsm
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 
 	"github.com/janedb/internal/flags"
+	"github.com/janedb/internal/keys"
 	"github.com/janedb/internal/manifest"
 	"github.com/janedb/internal/memtable"
+
 	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
 )
 
+type ValueType uint8
+
 const GCThreshold = 128
+
+const (
+	TypeDeletion ValueType = 0
+	TypeAddition ValueType = 1
+)
 
 type LSM struct {
 	m *memtable.Memtable
 	v *vlog.VLog
+
+	sequence uint64
 
 	level []manifest.SSTableMeta
 
@@ -78,11 +88,12 @@ func (lsm *LSM) Put(key []byte, value []byte) error {
 		lsm.level = append(lsm.level, meta)
 	}
 
-	return lsm.m.Put(key, value)
+	lsm.sequence++
+	return lsm.m.Put(key, value, lsm.sequence, uint8(TypeAddition))
 }
 
 func (lsm *LSM) Get(key []byte, buf []byte) bool {
-	ptr, ok := lsm.m.Get([]byte(key))
+	ptr, ok := lsm.m.Get([]byte(key), lsm.sequence)
 	if ok {
 		if err := lsm.v.ReadValue(ptr, buf); err != nil {
 			return false
@@ -103,18 +114,20 @@ func (lsm *LSM) Get(key []byte, buf []byte) bool {
 }
 
 func (lsm *LSM) Delete(key []byte) error {
-	return lsm.m.Delete(key)
+	lsm.sequence++
+	return lsm.m.Delete(key, lsm.sequence, uint8(TypeAddition))
 }
 
 func (lsm *LSM) getPtr(key []byte) (vlog.ValuePointer, error) {
 
+	lookup := keys.InternalKey(key, lsm.sequence, 1)
+
 	for _, meta := range lsm.level {
-		if bytes.Compare(key, meta.Smallest) >= 0 && bytes.Compare(key, meta.Largest) <= 0 {
-			ptr, err := sstable.Read(key, meta.ID)
+		if keys.CompareInternalKey(lookup, meta.Smallest) >= 0 && keys.CompareInternalKey(lookup, meta.Largest) <= 0 {
+			ptr, err := sstable.Read(key, lookup, meta.ID)
 			if err != nil {
 				return vlog.ValuePointer{}, err
 			}
-
 			return ptr, nil
 		}
 	}

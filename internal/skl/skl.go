@@ -1,9 +1,9 @@
 package skl
 
 import (
-	"bytes"
 	"math/rand/v2"
 
+	"github.com/janedb/internal/keys"
 	"github.com/janedb/internal/vlog"
 )
 
@@ -56,7 +56,7 @@ func (skl *Skiplist) Search(key []byte) (vlog.ValuePointer, bool) {
 
 			nextKey := skl.arena.getBytes(next.keyOffset, next.keySize)
 
-			if bytes.Compare(nextKey, key) >= 0 {
+			if keys.CompareInternalKey(nextKey, key) >= 0 {
 				break
 			}
 
@@ -74,7 +74,7 @@ func (skl *Skiplist) Search(key []byte) (vlog.ValuePointer, bool) {
 
 	nextKey := skl.arena.getBytes(next.keyOffset, next.keySize)
 
-	if bytes.Equal(nextKey, key) {
+	if keys.CompareInternalKey(nextKey, key) == 0 {
 		return next.value, true
 	}
 
@@ -100,7 +100,7 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 			next := skl.arena.getNode(nextOffset)
 			nextKey := skl.arena.getBytes(next.keyOffset, next.keySize)
 
-			if bytes.Compare(nextKey, key) >= 0 {
+			if keys.CompareInternalKey(nextKey, key) >= 0 {
 				break
 			}
 
@@ -117,7 +117,7 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 		next := skl.arena.getNode(nextOffset)
 		nextKey := skl.arena.getBytes(next.keyOffset, next.keySize)
 
-		if bytes.Equal(nextKey, key) {
+		if keys.CompareInternalKey(nextKey, key) == 0 {
 			next.value = value
 			return
 		}

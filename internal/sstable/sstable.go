@@ -74,7 +74,7 @@ func readBloomOffset(file *os.File) (uint64, error) {
 	return binary.LittleEndian.Uint64(buf[:]), nil
 }
 
-func Read(key []byte, id string) (vlog.ValuePointer, error) {
+func Read(userkey []byte, internalkey []byte, id string) (vlog.ValuePointer, error) {
 	path := filepath.Join(flags.SstDir, id)
 
 	file, err := os.Open(path)
@@ -97,7 +97,7 @@ func Read(key []byte, id string) (vlog.ValuePointer, error) {
 		return vlog.ValuePointer{}, err
 	}
 
-	if !bf.MayContain(key) {
+	if !bf.MayContain(userkey) {
 		return vlog.ValuePointer{}, fmt.Errorf("key not found")
 	}
 
@@ -141,7 +141,7 @@ func Read(key []byte, id string) (vlog.ValuePointer, error) {
 
 		start += VPSize
 
-		if bytes.Equal(keyBuf, key) {
+		if bytes.Equal(keyBuf, internalkey) {
 			return vlog.ValuePointer{
 				Offset: int64(offset),
 				Len:    int64(length),
@@ -156,7 +156,8 @@ func (s *SSTable) WriteEntry(entry SSTableEntry) (uint64, error) {
 
 	keyLen := uint32(len(entry.Key))
 
-	s.bf.Add(entry.Key)
+	userKey := entry.Key[:len(entry.Key)-8]
+	s.bf.Add(userKey)
 
 	if err := binary.Write(s.file, binary.BigEndian, keyLen); err != nil {
 		return 0, err

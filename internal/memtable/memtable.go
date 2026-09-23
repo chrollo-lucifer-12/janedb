@@ -6,8 +6,10 @@ import (
 	"uuid"
 
 	"github.com/janedb/internal/flags"
+	"github.com/janedb/internal/keys"
 	"github.com/janedb/internal/manifest"
 	"github.com/janedb/internal/skl"
+
 	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
 )
@@ -30,7 +32,7 @@ func NewMemtable(v *vlog.VLog) (*Memtable, error) {
 	values := v.Recover()
 
 	for k, v := range values {
-		skl.Insert([]byte(k), v)
+		skl.Insert(keys.InternalKey([]byte(k), v.Sequence, v.VType), v.Ptr)
 	}
 
 	return &Memtable{
@@ -43,17 +45,19 @@ func (m *Memtable) Close() error {
 	return m.vlog.Close()
 }
 
-func (m *Memtable) Put(key []byte, value []byte) error {
+func (m *Memtable) Put(key []byte, value []byte, sequence uint64, vType uint8) error {
 
-	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: value})
+	tKey := keys.InternalKey(key, sequence, vType)
+
+	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: value, Sequence: sequence, VType: vType})
 
 	if err != nil {
 		return fmt.Errorf("memtable put: %w", err)
 	}
 
-	m.size += uint64(len(key))
+	m.size += uint64(len(tKey))
 	m.numskeys++
-	m.skl.Insert(key, ptr)
+	m.skl.Insert(tKey, ptr)
 
 	return nil
 }
@@ -68,8 +72,11 @@ func (m *Memtable) UpdatePtr(key []byte, ptr vlog.ValuePointer) {
 	m.skl.Insert(key, ptr)
 }
 
-func (m *Memtable) Get(key []byte) (vlog.ValuePointer, bool) {
-	ptr, ok := m.skl.Search(key)
+func (m *Memtable) Get(key []byte, sequence uint64) (vlog.ValuePointer, bool) {
+
+	tKey := keys.InternalKey(key, sequence, 1)
+
+	ptr, ok := m.skl.Search(tKey)
 
 	if ptr.Len == 0 {
 		return ptr, false
@@ -78,13 +85,16 @@ func (m *Memtable) Get(key []byte) (vlog.ValuePointer, bool) {
 	return ptr, ok
 }
 
-func (m *Memtable) Delete(key []byte) error {
-	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: nil})
+func (m *Memtable) Delete(key []byte, sequence uint64, vType uint8) error {
+
+	tKey := keys.InternalKey(key, sequence, vType)
+
+	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: nil, Sequence: sequence, VType: vType})
 	if err != nil {
 		return fmt.Errorf("memtable delete: %w", err)
 	}
 
-	m.skl.Insert(key, ptr)
+	m.skl.Insert(tKey, ptr)
 	m.numskeys--
 
 	return nil
