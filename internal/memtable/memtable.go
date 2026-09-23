@@ -6,6 +6,7 @@ import (
 	"uuid"
 
 	"github.com/janedb/internal/flags"
+	"github.com/janedb/internal/manifest"
 	"github.com/janedb/internal/skl"
 	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
@@ -85,10 +86,10 @@ func (m *Memtable) Delete(key []byte) error {
 	return nil
 }
 
-func (m *Memtable) Flush() (sstable.SSTableMeta, error) {
+func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 	it := skl.GetIterator(m.skl)
 
-	sstmeta := sstable.SSTableMeta{
+	sstmeta := manifest.SSTableMeta{
 		Size:  0,
 		Level: 0,
 		ID:    uuid.New().String(),
@@ -96,7 +97,7 @@ func (m *Memtable) Flush() (sstable.SSTableMeta, error) {
 
 	sst, err := sstable.Create(filepath.Join(flags.SstDir, sstmeta.ID))
 	if err != nil {
-		return sstable.SSTableMeta{}, err
+		return manifest.SSTableMeta{}, err
 	}
 
 	var smallest, largest []byte
@@ -119,7 +120,7 @@ func (m *Memtable) Flush() (sstable.SSTableMeta, error) {
 			Value: it.Value,
 		})
 		if err != nil {
-			return sstable.SSTableMeta{}, err
+			return manifest.SSTableMeta{}, err
 		}
 
 		sstmeta.Size += n
@@ -128,19 +129,15 @@ func (m *Memtable) Flush() (sstable.SSTableMeta, error) {
 	sstmeta.Smallest = smallest
 	sstmeta.Largest = largest
 
-	if err := sstable.SaveManifest(sstmeta); err != nil {
-		return sstable.SSTableMeta{}, err
+	if err := manifest.SaveManifest(sstmeta); err != nil {
+		return manifest.SSTableMeta{}, err
 	}
 
 	m.skl = skl.NewSkiplist()
 
-	return sstable.SSTableMeta{}, nil
+	return manifest.SSTableMeta{}, nil
 }
 
 func (m *Memtable) IsOverflow() bool {
 	return m.size+m.skl.GetSize() > MaxSize
-}
-
-func (m *Memtable) ReadValue(ptr vlog.ValuePointer, buf []byte) {
-	m.vlog.ReadValue(ptr, buf)
 }

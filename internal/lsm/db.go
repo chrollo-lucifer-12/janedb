@@ -3,11 +3,10 @@ package lsm
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
-	"time"
 
 	"github.com/janedb/internal/flags"
+	"github.com/janedb/internal/manifest"
 	"github.com/janedb/internal/memtable"
 	"github.com/janedb/internal/sstable"
 	"github.com/janedb/internal/vlog"
@@ -19,7 +18,7 @@ type LSM struct {
 	m *memtable.Memtable
 	v *vlog.VLog
 
-	level []sstable.SSTableMeta
+	level []manifest.SSTableMeta
 
 	gcStop chan struct{}
 	gcDone chan struct{}
@@ -31,22 +30,11 @@ func OpenLSM() (*LSM, error) {
 		return nil, err
 	}
 
-	var err error
 	l := &LSM{}
 
-	tail, head, err := GetMarkers()
-
-	l.v, err = vlog.OpenVLog(flags.VlogDir, head, tail)
-	if err != nil {
+	if err := l.recover(); err != nil {
 		return nil, err
 	}
-
-	l.m, err = memtable.NewMemtable(l.v)
-	if err != nil {
-		return nil, err
-	}
-
-	l.level, err = sstable.RecoverManifest()
 
 	return l, nil
 }
@@ -57,11 +45,11 @@ func (lsm *LSM) Close() error {
 		<-lsm.gcDone
 	}
 
-	if err := SaveTail(lsm.v.GetTail()); err != nil {
+	if err := saveTail(lsm.v.GetTail()); err != nil {
 		return err
 	}
 
-	if err := SaveHead(lsm.v.GetHead()); err != nil {
+	if err := saveHead(lsm.v.GetHead()); err != nil {
 		return err
 	}
 
@@ -74,13 +62,13 @@ func (lsm *LSM) Close() error {
 
 func (lsm *LSM) Put(key []byte, value []byte) error {
 
-	// if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
-	// 	lsm.startGC()
-	// }
+	if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
+		lsm.startGC()
+	}
 
 	if lsm.m.IsOverflow() {
 
-		SaveHead(lsm.v.GetHead())
+		saveHead(lsm.v.GetHead())
 
 		meta, err := lsm.m.Flush()
 		if err != nil {
@@ -108,7 +96,7 @@ func (lsm *LSM) Get(key []byte, buf []byte) bool {
 		return false
 	}
 
-	lsm.m.ReadValue(ptr, buf)
+	lsm.v.ReadValue(ptr, buf)
 
 	return true
 
@@ -137,30 +125,4 @@ func (lsm *LSM) getPtr(key []byte) (vlog.ValuePointer, error) {
 	}
 
 	return vlog.ValuePointer{}, fmt.Errorf("key not found")
-}
-
-func (lsm *LSM) startGC() {
-	lsm.gcStop = make(chan struct{})
-	lsm.gcDone = make(chan struct{})
-
-	go func() {
-		defer close(lsm.gcDone)
-
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
-					if err := lsm.RunGarbageCollector(); err != nil {
-						log.Printf("gc: %v", err)
-					}
-				}
-
-			case <-lsm.gcStop:
-				return
-			}
-		}
-	}()
 }
