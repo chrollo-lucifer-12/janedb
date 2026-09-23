@@ -7,6 +7,24 @@ import (
 	"github.com/janedb/internal/flags"
 )
 
+func saveSequence(sequence int64) error {
+	file, err := os.OpenFile(
+		flags.VlogMarkers,
+		os.O_CREATE|os.O_RDWR,
+		0644,
+	)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err := binary.Write(file, binary.BigEndian, sequence); err != nil {
+		return err
+	}
+
+	return file.Sync()
+}
+
 func saveHead(head int64) error {
 	file, err := os.OpenFile(
 		flags.VlogMarkers,

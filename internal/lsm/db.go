@@ -55,6 +55,10 @@ func (lsm *LSM) Close() error {
 		<-lsm.gcDone
 	}
 
+	if err := saveSequence(int64(lsm.sequence)); err != nil {
+		return err
+	}
+
 	if err := saveTail(lsm.v.GetTail()); err != nil {
 		return err
 	}
