@@ -39,7 +39,7 @@ func getMarkers() (int64, int64, int64, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return 0, 0, 0, nil
 		}
-		return -1, -1, -1, err
+		return 0, 0, 0, err
 	}
 
 	var (
@@ -49,15 +49,15 @@ func getMarkers() (int64, int64, int64, error) {
 	)
 
 	if err := binary.Read(file, binary.BigEndian, &sequence); err != nil {
-		return -1, -1, -1, err
+		return 0, 0, 0, err
 	}
 
 	if err := binary.Read(file, binary.BigEndian, &tail); err != nil {
-		return -1, -1, -1, err
+		return 0, 0, 0, err
 	}
 
 	if err := binary.Read(file, binary.BigEndian, &head); err != nil {
-		return -1, -1, -1, err
+		return 0, 0, 0, err
 	}
 
 	return sequence, tail, head, nil

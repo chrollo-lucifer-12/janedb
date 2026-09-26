@@ -3,6 +3,7 @@ package lsm
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/janedb/internal/flags"
 	"github.com/janedb/internal/keys"
@@ -26,6 +27,7 @@ type LSM struct {
 	m *memtable.Memtable
 	v *vlog.VLog
 
+	mu       sync.Mutex
 	sequence uint64
 
 	level []manifest.SSTableMeta
@@ -76,9 +78,8 @@ func (lsm *LSM) Close() error {
 
 func (lsm *LSM) Put(key []byte, value []byte) error {
 
-	if lsm.v.GetHead()-lsm.v.GetTail() >= GCThreshold {
-		lsm.startGC()
-	}
+	lsm.mu.Lock()
+	defer lsm.mu.Unlock()
 
 	if lsm.m.IsOverflow() {
 
@@ -117,8 +118,16 @@ func (lsm *LSM) Get(key []byte, buf []byte) (int, bool) {
 }
 
 func (lsm *LSM) Delete(key []byte) error {
+	lsm.mu.Lock()
+	defer lsm.mu.Unlock()
+
 	lsm.sequence++
-	return lsm.m.Delete(key, lsm.sequence, uint8(TypeAddition))
+
+	return lsm.m.Delete(
+		key,
+		lsm.sequence,
+		uint8(TypeDeletion),
+	)
 }
 
 func (lsm *LSM) getPtr(key []byte) (vlog.ValuePointer, error) {

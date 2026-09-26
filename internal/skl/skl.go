@@ -172,6 +172,7 @@ func (skl *Skiplist) Insert(key []byte, value vlog.ValuePointer) {
 
 		skl.arena.setNext(newNode.towerOffset, i, nextOffset)
 		skl.arena.setNext(prev.towerOffset, i, newOffset)
+
 	}
 
 }
@@ -188,7 +189,10 @@ type Iterator struct {
 }
 
 func GetIterator(skl *Skiplist) *Iterator {
-	return &Iterator{skl: skl, node: skl.head}
+
+	head := skl.arena.getNode(skl.head)
+
+	return &Iterator{skl: skl, node: skl.arena.getNext(head.towerOffset, 0)}
 }
 
 func (i *Iterator) GetNext() bool {
@@ -202,7 +206,7 @@ func (i *Iterator) GetNext() bool {
 	i.Key = i.skl.arena.getBytes(node.keyOffset, node.keySize)
 	i.Value = node.value
 
-	i.node = i.skl.arena.getNext(i.node, 0)
+	i.node = i.skl.arena.getNext(node.towerOffset, 0)
 
 	return true
 }

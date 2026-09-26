@@ -15,7 +15,7 @@ type Arena struct {
 func NewArena(size uint32) *Arena {
 	return &Arena{
 		buf: make([]byte, size),
-		n:   1,
+		n:   8,
 	}
 }
 
@@ -77,4 +77,5 @@ func (a *Arena) getNext(towerOffset uint32, level int) uint32 {
 func (a *Arena) setNext(towerOffset uint32, level int, value uint32) {
 	offset := towerOffset + uint32(level*4)
 	binary.LittleEndian.PutUint32(a.buf[offset:offset+4], value)
+
 }

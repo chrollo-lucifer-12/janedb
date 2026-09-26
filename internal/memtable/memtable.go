@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"uuid"
 
 	"github.com/janedb/internal/flags"
@@ -23,6 +24,8 @@ type Memtable struct {
 	vlog *vlog.VLog
 
 	numskeys int
+
+	mu sync.RWMutex
 
 	size uint64
 }
@@ -49,6 +52,9 @@ func (m *Memtable) Close() error {
 
 func (m *Memtable) Put(key []byte, value []byte, sequence uint64, vType uint8) error {
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	tKey := keys.InternalKey(key, sequence, vType)
 
 	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: value, Sequence: sequence, VType: vType})
@@ -65,6 +71,10 @@ func (m *Memtable) Put(key []byte, value []byte, sequence uint64, vType uint8) e
 }
 
 func (m *Memtable) UpdatePtr(key []byte, ptr vlog.ValuePointer) {
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.skl.Search(key)
 
 	if !ok {
@@ -75,6 +85,10 @@ func (m *Memtable) UpdatePtr(key []byte, ptr vlog.ValuePointer) {
 }
 
 func (m *Memtable) Get(key []byte, sequence uint64) (vlog.ValuePointer, bool) {
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	tKey := keys.InternalKey(key, sequence, 1)
 
 	ptr, internalKey := m.skl.Seek(tKey)
@@ -99,6 +113,9 @@ func (m *Memtable) Get(key []byte, sequence uint64) (vlog.ValuePointer, bool) {
 
 func (m *Memtable) Delete(key []byte, sequence uint64, vType uint8) error {
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	tKey := keys.InternalKey(key, sequence, vType)
 
 	ptr, err := m.vlog.Append(vlog.Entry{Key: key, Value: nil, Sequence: sequence, VType: vType})
@@ -113,6 +130,10 @@ func (m *Memtable) Delete(key []byte, sequence uint64, vType uint8) error {
 }
 
 func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	it := skl.GetIterator(m.skl)
 
 	sstmeta := manifest.SSTableMeta{
@@ -163,10 +184,13 @@ func (m *Memtable) Flush() (manifest.SSTableMeta, error) {
 
 	m.skl = skl.NewSkiplist()
 	m.numskeys = 0
+	m.size = 0
 
-	return manifest.SSTableMeta{}, nil
+	return sstmeta, nil
 }
 
 func (m *Memtable) IsOverflow() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.size+m.skl.GetSize() > MaxSize
 }

@@ -3,12 +3,15 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/janedb/internal/lsm"
 	"golang.org/x/sys/unix"
 )
 
 type Server struct {
+	mu sync.Mutex
+
 	db      *lsm.LSM
 	clients map[uint32]*Client
 }
@@ -60,7 +63,15 @@ func (s *Server) handleConnection(fd int) {
 
 	c := NewClient(uint32(fd))
 
+	s.mu.Lock()
 	s.clients[uint32(fd)] = c
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		delete(s.clients, uint32(fd))
+		s.mu.Unlock()
+	}()
 
 	for {
 		n, err := unix.Read(fd, c.readBuf)
