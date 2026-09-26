@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/janedb/internal/lsm"
+	"github.com/janedb/internal/server"
 )
 
 func main() {
@@ -13,18 +12,9 @@ func main() {
 	}
 	defer db.Close()
 
-	buf := make([]byte, 1024)
+	s := server.NewServer(db)
 
-	ok := db.Get([]byte("k"), buf)
-	if !ok {
-		fmt.Println("not found")
-	} else {
-		fmt.Println(string(buf))
+	if err := s.RunServer(); err != nil {
+		panic(err)
 	}
-
-	// s := server.NewServer(db)
-
-	// if err := s.RunServer(); err != nil {
-	// 	panic(err)
-	// }
 }

@@ -98,12 +98,20 @@ func (s *Server) handleConnection(fd int) {
 
 			switch req.Command {
 			case "SET":
-				s.db.Put([]byte(req.Key), []byte(req.Value))
+				s.db.Put(req.Key, req.Value)
 				c.writeBuf = append(c.writeBuf, "OK\n"...)
 			case "GET":
-				s.db.Get([]byte(req.Key), c.writeBuf)
+				n, ok := s.db.Get([]byte(req.Key), c.valueBuf)
+				if !ok {
+					c.writeBuf = append(c.writeBuf, "NOT_FOUND\n"...)
+					break
+				}
+
+				c.writeBuf = append(c.writeBuf, "VALUE "...)
+				c.writeBuf = append(c.writeBuf, c.valueBuf[:n]...)
+				c.writeBuf = append(c.writeBuf, '\n')
 			case "DEL":
-				s.db.Delete([]byte(req.Key))
+				s.db.Delete(req.Key)
 				c.writeBuf = append(c.writeBuf, "OK\n"...)
 			}
 

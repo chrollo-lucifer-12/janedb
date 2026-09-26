@@ -7,8 +7,8 @@ import (
 
 type Request struct {
 	Command string
-	Key     string
-	Value   string
+	Key     []byte
+	Value   []byte
 }
 
 func ParseRequest(buf []byte) (Request, error) {
@@ -22,8 +22,8 @@ func ParseRequest(buf []byte) (Request, error) {
 
 		return Request{
 			Command: "SET",
-			Key:     string(parts[1]),
-			Value:   string(parts[2]),
+			Key:     (parts[1]),
+			Value:   (parts[2]),
 		}, nil
 
 	case "GET", "DEL":
@@ -33,7 +33,7 @@ func ParseRequest(buf []byte) (Request, error) {
 
 		return Request{
 			Command: string(parts[0]),
-			Key:     string(parts[1]),
+			Key:     (parts[1]),
 		}, nil
 
 	default:

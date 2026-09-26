@@ -96,24 +96,24 @@ func (lsm *LSM) Put(key []byte, value []byte) error {
 	return lsm.m.Put(key, value, lsm.sequence, uint8(TypeAddition))
 }
 
-func (lsm *LSM) Get(key []byte, buf []byte) bool {
+func (lsm *LSM) Get(key []byte, buf []byte) (int, bool) {
 	ptr, ok := lsm.m.Get([]byte(key), lsm.sequence)
 	if ok {
 		if err := lsm.v.ReadValue(ptr, buf); err != nil {
-			return false
+			return 0, false
 		}
 
-		return true
+		return int(ptr.Len), true
 	}
 
 	ptr, err := lsm.getPtr(key)
 	if err != nil {
-		return false
+		return 0, false
 	}
 
 	lsm.v.ReadValue(ptr, buf)
 
-	return true
+	return int(ptr.Len), true
 }
 
 func (lsm *LSM) Delete(key []byte) error {
