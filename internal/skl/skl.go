@@ -40,6 +40,38 @@ func NewSkiplist() *Skiplist {
 	}
 }
 
+func (s *Skiplist) Seek(key []byte) (vlog.ValuePointer, []byte) {
+	curr := s.arena.getNode(s.head)
+
+	for level := MaxLevel - 1; level >= 0; level-- {
+		for {
+			nextOffset := s.arena.getNext(curr.towerOffset, level)
+			if nextOffset == invalidOffset {
+				break
+			}
+
+			next := s.arena.getNode(nextOffset)
+			nextKey := s.arena.getBytes(next.keyOffset, next.keySize)
+
+			if keys.CompareInternalKey(nextKey, key) >= 0 {
+				break
+			}
+
+			curr = next
+		}
+	}
+
+	nextOffset := s.arena.getNext(curr.towerOffset, 0)
+	if nextOffset == invalidOffset {
+		return vlog.ValuePointer{}, nil
+	}
+
+	next := s.arena.getNode(nextOffset)
+	nextKey := s.arena.getBytes(next.keyOffset, next.keySize)
+
+	return next.value, nextKey
+}
+
 func (skl *Skiplist) Search(key []byte) (vlog.ValuePointer, bool) {
 	curr := skl.arena.getNode(skl.head)
 

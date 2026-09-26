@@ -114,7 +114,6 @@ func (lsm *LSM) Get(key []byte, buf []byte) bool {
 	lsm.v.ReadValue(ptr, buf)
 
 	return true
-
 }
 
 func (lsm *LSM) Delete(key []byte) error {

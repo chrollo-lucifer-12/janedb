@@ -1,6 +1,8 @@
 package memtable
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"uuid"
@@ -73,16 +75,26 @@ func (m *Memtable) UpdatePtr(key []byte, ptr vlog.ValuePointer) {
 }
 
 func (m *Memtable) Get(key []byte, sequence uint64) (vlog.ValuePointer, bool) {
-
 	tKey := keys.InternalKey(key, sequence, 1)
 
-	ptr, ok := m.skl.Search(tKey)
-
-	if ptr.Len == 0 {
-		return ptr, false
+	ptr, internalKey := m.skl.Seek(tKey)
+	if internalKey == nil {
+		return vlog.ValuePointer{}, false
 	}
 
-	return ptr, ok
+	userKey := internalKey[:len(internalKey)-8]
+	if !bytes.Equal(userKey, key) {
+		return vlog.ValuePointer{}, false
+	}
+
+	tag := binary.LittleEndian.Uint64(internalKey[len(internalKey)-8:])
+	vType := uint8(tag)
+
+	if vType == 0 {
+		return vlog.ValuePointer{}, false
+	}
+
+	return ptr, true
 }
 
 func (m *Memtable) Delete(key []byte, sequence uint64, vType uint8) error {
